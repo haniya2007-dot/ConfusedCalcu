@@ -7,6 +7,8 @@
 ## Basic Details
 ### Team Name: [Name]
 
+## Link to website :
+https://haniya2007-dot.github.io/ConfusedCalcu/
 
 ### Team Members
 - Team Lead: fathima haniya pv
