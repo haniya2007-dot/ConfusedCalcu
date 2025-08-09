@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Confused Calculator</title>
+  <style>
+    :root{
+      --bg:#0f1724;
+      --panel:#0b1220;
+      --accent:#ffb86b;
+      --muted:#94a3b8;
+      --glass: rgba(255,255,255,0.03);
+    }
+    *{box-sizing:border-box;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;}
+    body{
+      margin:0;min-height:100vh;
+      display:grid;place-items:center;
+      background:
+        radial-gradient(800px 400px at 10% 10%, rgba(255,184,107,0.06), transparent 6%),
+        radial-gradient(600px 300px at 90% 90%, rgba(99,102,241,0.04), transparent 6%),
+        var(--bg);
+      color:#e6eef8;
+      padding:24px;
+    }
+
+    .calc {
+      width:320px;
+      border-radius:18px;
+      padding:18px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      box-shadow: 0 12px 30px rgba(2,6,23,0.7), inset 0 1px 0 rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.03);
+    }
+
+    .screen {
+      height:84px;
+      background:var(--glass);
+      border-radius:12px;
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      gap:6px;
+      margin-bottom:14px;
+      position:relative;
+      overflow:hidden;
+    }
+    .screen .expr { font-size:14px; color:var(--muted); min-height:18px; word-break:break-all; }
+    .screen .result { font-size:28px; font-weight:600; letter-spacing:0.6px; }
+
+    .buttons {
+      display:grid;
+      grid-template-columns: repeat(4,1fr);
+      gap:10px;
+    }
+    button.key{
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.03);
+      padding:14px;
+      border-radius:10px;
+      font-size:16px;
+      cursor:pointer;
+      transition:transform .08s ease, box-shadow .08s;
+      box-shadow: 0 6px 12px rgba(2,6,23,0.5);
+    }
+    button.key:active{ transform: translateY(2px) scale(.997); box-shadow:none; }
+
+    .key.op { color:var(--accent); font-weight:600; }
+    .key.wide { grid-column: span 2; }
+    .key.clear { background: linear-gradient(90deg,#ff6b6b, #ff8a8a); color:white; font-weight:700; }
+    .key.equals { background: linear-gradient(90deg, #6ee7b7, #34d399); color:#042017; font-weight:800; }
+
+    .footer {
+      margin-top:12px; text-align:center; color:var(--muted); font-size:13px;
+    }
+
+    /* subtle floating emoji */
+    .bubble {
+      position:absolute; right:-10px; top:-12px; font-size:64px; opacity:0.06; transform:rotate(-12deg);
+      filter:blur(.2px);
+    }
+
+    @media (max-width:360px){
+      .calc{ width: 92vw; }
+    }
+  </style>
+</head>
+<body>
+  <div class="calc" role="application" aria-label="Confused calculator">
+    <div class="screen" id="screen">
+      <div class="expr" id="expr">0</div>
+      <div class="result" id="result">—</div>
+      <div class="bubble">🤨</div>
+    </div>
+
+    <div class="buttons" id="buttons">
+      <!-- Row 1 -->
+      <button class="key clear" data-action="clear">C</button>
+      <button class="key" data-action="back">⌫</button>
+      <button class="key op" data-value="(">(</button>
+      <button class="key op" data-value=")">)</button>
+
+      <!-- Row 2 -->
+      <button class="key" data-value="7">7</button>
+      <button class="key" data-value="8">8</button>
+      <button class="key" data-value="9">9</button>
+      <button class="key op" data-value="/">÷</button>
+
+      <!-- Row 3 -->
+      <button class="key" data-value="4">4</button>
+      <button class="key" data-value="5">5</button>
+      <button class="key" data-value="6">6</button>
+      <button class="key op" data-value="*">×</button>
+
+      <!-- Row 4 -->
+      <button class="key" data-value="1">1</button>
+      <button class="key" data-value="2">2</button>
+      <button class="key" data-value="3">3</button>
+      <button class="key op" data-value="-">−</button>
+
+      <!-- Row 5 -->
+      <button class="key wide" data-value="0">0</button>
+      <button class="key" data-value=".">.</button>
+      <button class="key op" data-value="+">+</button>
+
+      <!-- Row 6 -->
+      <button class="key wide equals" data-action="equals">=</button>
+    </div>
+
+    <div class="footer">Confused Calculator — it answers like it had coffee 10 minutes ago.</div>
+  </div>
+
+  <script>
+    (function(){
+      const exprEl = document.getElementById('expr');
+      const resEl  = document.getElementById('result');
+      const buttons = document.getElementById('buttons');
+
+      let expression = '';
+
+      const nonsense = [
+        "Fish",
+        "¯\\_(ツ)_/¯",
+        "Maybe",
+        "42 (probably)",
+        "Not today",
+        "Error: feelings not found",
+        "Ask again later",
+        "Banana™",
+        "I dunno",
+        "Close enough",
+        "Definitely not",
+        "Try turning it off"
+      ];
+
+      function updateScreen(){
+        exprEl.textContent = expression || '0';
+        if(!expression) resEl.textContent = '—';
+      }
+
+      function safeEval(expr){
+        // very simple safety filter: allow digits, spaces, + - * / . ( )
+        if(!/^[0-9+\-*/().\s]+$/.test(expr)) throw new Error('Bad expression');
+        // quick evaluate using Function (local file for fun). For safety in production use a real parser.
+        // also limit length
+        if(expr.length > 120) throw new Error('Too long');
+        // evaluate
+        // eslint-disable-next-line no-new-func
+        return Function('"use strict"; return (' + expr + ')')();
+      }
+
+      buttons.addEventListener('click', (e)=>{
+        const t = e.target.closest('button');
+        if(!t) return;
+        const val = t.getAttribute('data-value');
+        const action = t.getAttribute('data-action');
+
+        if(action === 'clear'){
+          expression = '';
+          updateScreen();
+          return;
+        }
+        if(action === 'back'){
+          expression = expression.slice(0,-1);
+          updateScreen();
+          return;
+        }
+        if(action === 'equals'){
+          if(!expression.trim()){
+            resEl.textContent = "Type something";
+            return;
+          }
+
+          // decide: mostly nonsense, sometimes correct
+          const roll = Math.random();
+          if(roll < 0.72){
+            // nonsense
+            const pick = nonsense[Math.floor(Math.random()*nonsense.length)];
+            // silly animation
+            resEl.textContent = pick;
+            exprEl.classList.add('shaky');
+            setTimeout(()=> exprEl.classList.remove('shaky'), 600);
+          } else {
+            try {
+              const val = safeEval(expression);
+              // format result cleanly
+              const pretty = (Math.abs(val) < 1e-12) ? 0 : Number.isFinite(val) ? +parseFloat(val.toFixed(12)) : val;
+              resEl.textContent = pretty;
+            } catch (err) {
+              resEl.textContent = "Err";
+            }
+          }
+          return;
+        }
+
+        // regular value button
+        if(val){
+          expression += val;
+          updateScreen();
+        }
+      });
+
+      // keyboard support
+      window.addEventListener('keydown', (ev)=>{
+        if(ev.key === "Enter") {
+          document.querySelector('[data-action="equals"]').click();
+          ev.preventDefault();
+          return;
+        }
+        if(ev.key === "Backspace") { document.querySelector('[data-action="back"]').click(); ev.preventDefault(); return;}
+        if(ev.key === "Escape") { document.querySelector('[data-action="clear"]').click(); ev.preventDefault(); return;}
+        if(/^[0-9+\-*/().]$/.test(ev.key)) {
+          // map * and / visible symbols
+          expression += ev.key;
+          updateScreen();
+        }
+      });
+
+      // tiny cheeky CSS animation insertion
+      const style = document.createElement('style');
+      style.textContent = `
+        .shaky { animation: wobble .6s linear;}
+        @keyframes wobble {
+          0% { transform: translateX(0) }
+          20% { transform: translateX(-6px) rotate(-1deg) }
+          40% { transform: translateX(6px) rotate(1deg) }
+          60% { transform: translateX(-4px) rotate(-0.6deg) }
+          80% { transform: translateX(4px) rotate(0.6deg) }
+          100% { transform: translateX(0) }
+        }
+      `;
+      document.head.appendChild(style);
+
+      updateScreen();
+    })();
+  </script>
+</body>
+</html>
